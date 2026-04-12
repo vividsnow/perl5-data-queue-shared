@@ -1,7 +1,7 @@
 package Data::Queue::Shared;
 use strict;
 use warnings;
-our $VERSION = '0.01';
+our $VERSION = '0.03';
 
 require XSLoader;
 XSLoader::load('Data::Queue::Shared', $VERSION);
@@ -346,6 +346,30 @@ Key takeaways:
 =item * True concurrent MPMC (MCE::Queue is workers-to-manager only)
 
 =back
+
+=head1 SEE ALSO
+
+L<Data::Buffer::Shared> - typed shared array
+
+L<Data::HashMap::Shared> - concurrent hash table
+
+L<Data::PubSub::Shared> - publish-subscribe ring
+
+L<Data::ReqRep::Shared> - request-reply
+
+L<Data::Sync::Shared> - synchronization primitives
+
+L<Data::Pool::Shared> - fixed-size object pool
+
+L<Data::Stack::Shared> - LIFO stack
+
+L<Data::Deque::Shared> - double-ended queue
+
+L<Data::Log::Shared> - append-only log (WAL)
+
+L<Data::Heap::Shared> - priority queue
+
+L<Data::Graph::Shared> - directed weighted graph
 
 =head1 AUTHOR
 

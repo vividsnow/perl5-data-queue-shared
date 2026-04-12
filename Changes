@@ -1,5 +1,14 @@
 Revision history for Data-Queue-Shared
 
+0.03  2026-04-17
+    - queue_create: init header under flock (was released before init)
+    - Mutex stale recovery: FUTEX_WAKE 1 (was INT_MAX)
+    - queue_str_clear wakes all blocked producers/consumers
+
+0.02  2026-04-12
+    - Add SEE ALSO cross-links to family modules
+
+
 0.01  2026-04-05
     - Initial release
     - Int queue: lock-free Vyukov bounded MPMC

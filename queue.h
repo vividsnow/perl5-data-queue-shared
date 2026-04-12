@@ -194,7 +194,7 @@ static inline void queue_recover_stale_mutex(QueueHeader *hdr, uint32_t observed
         return;
     __atomic_add_fetch(&hdr->stat_recoveries, 1, __ATOMIC_RELAXED);
     if (__atomic_load_n(&hdr->mutex_waiters, __ATOMIC_RELAXED) > 0)
-        syscall(SYS_futex, &hdr->mutex, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
+        syscall(SYS_futex, &hdr->mutex, FUTEX_WAKE, 1, NULL, NULL, 0);
 }
 
 static inline void queue_mutex_lock(QueueHeader *hdr) {
@@ -283,6 +283,30 @@ static inline void queue_make_deadline(double timeout, struct timespec *deadline
 
 #define QUEUE_ERR(fmt, ...) do { if (errbuf) snprintf(errbuf, QUEUE_ERR_BUFLEN, fmt, ##__VA_ARGS__); } while(0)
 
+static inline void queue_init_new_header(void *base, uint32_t cap, uint64_t arena_cap,
+                                          uint32_t slots_off, uint32_t arena_off,
+                                          uint32_t mode, uint64_t total_size) {
+    QueueHeader *hdr = (QueueHeader *)base;
+    memset(hdr, 0, sizeof(QueueHeader));
+    hdr->magic      = QUEUE_MAGIC;
+    hdr->version    = QUEUE_VERSION;
+    hdr->mode       = mode;
+    hdr->capacity   = cap;
+    hdr->total_size = total_size;
+    hdr->slots_off  = slots_off;
+    hdr->arena_off  = arena_off;
+    hdr->arena_cap  = arena_cap;
+    #define INIT_SEQ(STYPE, C) do { \
+        STYPE *s = (STYPE *)((char *)base + slots_off); \
+        for (uint32_t _i = 0; _i < (C); _i++) s[_i].sequence = _i; \
+    } while(0)
+    if      (mode == QUEUE_MODE_INT)   INIT_SEQ(QueueIntSlot,   cap);
+    else if (mode == QUEUE_MODE_INT32) INIT_SEQ(QueueInt32Slot, cap);
+    else if (mode == QUEUE_MODE_INT16) INIT_SEQ(QueueInt16Slot, cap);
+    #undef INIT_SEQ
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+}
+
 static QueueHandle *queue_create(const char *path, uint32_t capacity,
                                   uint32_t mode, uint64_t arena_cap_hint,
                                   char *errbuf) {
@@ -324,6 +348,7 @@ static QueueHandle *queue_create(const char *path, uint32_t capacity,
             QUEUE_ERR("mmap(anonymous): %s", strerror(errno));
             return NULL;
         }
+        queue_init_new_header(base, cap, arena_cap, slots_off, arena_off, mode, total_size);
     } else {
         /* File-backed shared mmap */
         int fd = open(path, O_RDWR | O_CREAT, 0666);
@@ -386,34 +411,9 @@ static QueueHandle *queue_create(const char *path, uint32_t capacity,
             goto setup_handle;
         }
 
+        queue_init_new_header(base, cap, arena_cap, slots_off, arena_off, mode, total_size);
         flock(fd, LOCK_UN);
         close(fd);
-    }
-
-    /* Initialize new queue (anonymous or new file) */
-    {
-        QueueHeader *hdr = (QueueHeader *)base;
-        memset(hdr, 0, sizeof(QueueHeader));
-        hdr->magic     = QUEUE_MAGIC;
-        hdr->version   = QUEUE_VERSION;
-        hdr->mode      = mode;
-        hdr->capacity  = cap;
-        hdr->total_size = total_size;
-        hdr->slots_off = slots_off;
-        hdr->arena_off = arena_off;
-        hdr->arena_cap = arena_cap;
-
-        /* Initialize Vyukov sequence numbers for integer modes */
-        #define INIT_SEQ(STYPE, BASE, OFF, CAP) do { \
-            STYPE *s = (STYPE *)((char *)(BASE) + (OFF)); \
-            for (uint32_t _i = 0; _i < (CAP); _i++) s[_i].sequence = _i; \
-        } while(0)
-        if      (mode == QUEUE_MODE_INT)   INIT_SEQ(QueueIntSlot,   base, slots_off, cap);
-        else if (mode == QUEUE_MODE_INT32) INIT_SEQ(QueueInt32Slot, base, slots_off, cap);
-        else if (mode == QUEUE_MODE_INT16) INIT_SEQ(QueueInt16Slot, base, slots_off, cap);
-        #undef INIT_SEQ
-
-        __atomic_thread_fence(__ATOMIC_SEQ_CST);
     }
 
 setup_handle:;
@@ -479,32 +479,12 @@ static QueueHandle *queue_create_memfd(const char *name, uint32_t capacity,
         close(fd); return NULL;
     }
 
-    QueueHeader *hdr = (QueueHeader *)base;
-    memset(hdr, 0, sizeof(QueueHeader));
-    hdr->magic     = QUEUE_MAGIC;
-    hdr->version   = QUEUE_VERSION;
-    hdr->mode      = mode;
-    hdr->capacity  = cap;
-    hdr->total_size = total_size;
-    hdr->slots_off = slots_off;
-    hdr->arena_off = arena_off;
-    hdr->arena_cap = arena_cap;
-
-    #define INIT_SEQ(STYPE, BASE, OFF, CAP) do { \
-        STYPE *s = (STYPE *)((char *)(BASE) + (OFF)); \
-        for (uint32_t _i = 0; _i < (CAP); _i++) s[_i].sequence = _i; \
-    } while(0)
-    if      (mode == QUEUE_MODE_INT)   INIT_SEQ(QueueIntSlot,   base, slots_off, cap);
-    else if (mode == QUEUE_MODE_INT32) INIT_SEQ(QueueInt32Slot, base, slots_off, cap);
-    else if (mode == QUEUE_MODE_INT16) INIT_SEQ(QueueInt16Slot, base, slots_off, cap);
-    #undef INIT_SEQ
-
-    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    queue_init_new_header(base, cap, arena_cap, slots_off, arena_off, mode, total_size);
 
     QueueHandle *h = (QueueHandle *)calloc(1, sizeof(QueueHandle));
     if (!h) { munmap(base, (size_t)total_size); close(fd); return NULL; }
 
-    h->hdr        = hdr;
+    h->hdr        = (QueueHeader *)base;
     h->slots      = (char *)base + slots_off;
     h->arena      = (mode == QUEUE_MODE_STR) ? (char *)base + arena_off : NULL;
     h->mmap_size  = (size_t)total_size;
@@ -936,8 +916,16 @@ static void queue_str_clear(QueueHandle *h) {
     hdr->arena_wpos = 0;
     hdr->arena_used = 0;
     queue_mutex_unlock(hdr);
-    queue_wake_producers(hdr);
-    queue_wake_consumers(hdr);
+    /* clear is a bulk transition — wake every blocked producer and
+     * consumer so they re-evaluate state, not just one of each. */
+    if (__atomic_load_n(&hdr->push_waiters, __ATOMIC_RELAXED) > 0) {
+        __atomic_add_fetch(&hdr->push_futex, 1, __ATOMIC_RELEASE);
+        syscall(SYS_futex, &hdr->push_futex, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
+    }
+    if (__atomic_load_n(&hdr->pop_waiters, __ATOMIC_RELAXED) > 0) {
+        __atomic_add_fetch(&hdr->pop_futex, 1, __ATOMIC_RELEASE);
+        syscall(SYS_futex, &hdr->pop_futex, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
+    }
 }
 
 /* Peek: read front element without consuming (exact, under mutex). */

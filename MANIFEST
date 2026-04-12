@@ -40,3 +40,5 @@ t/09-coverage.t
 t/10-int32-int16.t
 t/11-keywords.t
 typemap
+xt/asan.t
+xt/valgrind.t
