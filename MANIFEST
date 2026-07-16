@@ -64,6 +64,7 @@ xt/fork_bomb.t
 xt/futex_fairness.t
 xt/fuzz_ops.t
 xt/invalid_args.t
+xt/kwalitee.t
 xt/manifest_vs_git.t
 xt/max_length.t
 xt/memfd_seal.t
