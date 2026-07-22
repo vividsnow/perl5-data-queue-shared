@@ -9,3 +9,4 @@ Shared.c
 Shared.o
 *.tar.gz
 MANIFEST.bak
+/Data-Queue-Shared-*/
