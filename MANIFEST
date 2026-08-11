@@ -85,3 +85,5 @@ xt/wait0_eq_try.t
 xt/wait_timeout_precision.t
 xt/write_visibility.t
 xt/zero_consumers.t
+t/15-recover.t
+t/16-foreign-invocant.t
