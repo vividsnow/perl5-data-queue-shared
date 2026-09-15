@@ -87,3 +87,4 @@ xt/write_visibility.t
 xt/zero_consumers.t
 t/15-recover.t
 t/16-foreign-invocant.t
+t/17-adversarial-hardening.t
