@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        perl: ['5.40', '5.38', '5.36', '5.34', '5.32', '5.30', '5.28', '5.26', '5.24', '5.22']
+        perl: ['5.42', '5.40', '5.38', '5.36', '5.34', '5.32', '5.30', '5.28', '5.26', '5.24', '5.22']
 
     steps:
       - uses: actions/checkout@v7
@@ -22,7 +22,7 @@ jobs:
           perl-version: ${{ matrix.perl }}
 
       - name: Install deps
-        run: cpanm -n Devel::PPPort
+        run: cpanm -n XS::Parse::Keyword Devel::PPPort
 
       - name: Build and test
         run: |
@@ -40,7 +40,7 @@ jobs:
         run: |
           apk add --no-cache perl perl-dev make gcc musl-dev linux-headers wget
           wget -qO- https://cpanmin.us | perl - App::cpanminus
-          cpanm -n Devel::PPPort
+          cpanm -n XS::Parse::Keyword Devel::PPPort
 
       - name: Build and test
         run: |
@@ -56,7 +56,7 @@ jobs:
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
-      - run: cpanm -n Devel::PPPort
+      - run: cpanm -n XS::Parse::Keyword Devel::PPPort
       - run: perl Makefile.PL && make && make test
 
   test-ubsan:
@@ -85,7 +85,7 @@ jobs:
           perl-version: '5.40'
       - run: cpanm -n XS::Parse::Keyword Devel::PPPort BSD::Resource Time::HiRes
       - run: perl Makefile.PL && make
-      - run: AUTHOR_TESTING=1 prove -b -j2 xt/*.t
+      - run: AUTHOR_TESTING=1 prove -b xt/*.t
         env:
           AUTHOR_TESTING: 1
 
